@@ -44,25 +44,27 @@ def writeSequence(seqPath, seqName, sequence):
 
 def searchEntrez(query):
     print("Searching Entrez IDs")
-    subQueryString = [i[0] for i in query]
+    subQueryString = [i[1] for i in query]
     queryString = ",".join(subQueryString)
     # print(queryString)
-    handle = Entrez.esearch(db="nuccore", rettype="Fasta", retmode="text", term=queryString)
+    # handle = Entrez.esearch(db="nuccore", rettype="Fasta", retmode="text", term=queryString)
+    handle = Entrez.esearch(db="nuccore", retmode="text", term=queryString)
     records = Entrez.read(handle)
     handle.close()
     return records["IdList"]
 
 def fetchEntrez(entrezIDs):
     print("Fetching sequences")
-    handle = Entrez.efetch(db="nuccore", id=entrezIDs, rettype="FASTA", retmode="text")
+    handle = Entrez.efetch(db="nuccore", id=entrezIDs, rettype="fasta", retmode="text")
     data = handle.readlines()
     handle.close()
     return data
 
 
 
-indexFile = "/mnt/h/bioDB/ProMGE/mges.txt"
-dbLocation = "/mnt/h/bioDB/ProMGE/sequencesData"
+indexFile = "/mnt/d/bioDB/ProMGE/mges.txt"
+dbLocation = "/mnt/d/bioDB/ProMGE/sequencesData"
+Entrez.email="antoine.druart@me.com"
 # indexSequenceFile = "/mnt/h/bioDB/ProMGE/indexSequences.txt"
 
 print(f"Reading {indexFile}")
@@ -76,7 +78,7 @@ count = 0
 indexSize = 3
 startIndex = {}
 endIndex = {}
-# query = []
+query = []
 failedDownload = []
 numberOfSeqPerDl = 21
 nbseq = len(data["mge_genome_position"])
@@ -96,31 +98,32 @@ with alive_bar(nbseq) as bar:
             seqIDs.append(seqID)
             startIndex[startString].append(len(seqIDs)-1)
             endIndex[endString].append(len(seqIDs)-1)
+            query.append(seqID)
         bar()
-        print(len(seqIDs))
+        # print(len(seqIDs))
         # if seqID not in query:
-        # if len(query)>=numberOfSeqPerDl or i==nbseq-1 and len(query)>0:
-        #     entrezIDs = searchEntrez(query)
-        #     print(f"EntrezIDs : {len(entrezIDs)}")
-        #     rawSequences = fetchEntrez(entrezIDs)
-        #     print(f"rawSequencesIDs : {len(rawSequences)}")
-        #     FastaSequences = ParseSequences(rawSequences)
-        #     print(f"EntrezIDs : {len(FastaSequences.keys())}")
-        #     FastaSequencesKeysShort = []
-        #     FastaSequencesKeysLong = [seqName for seqName in FastaSequences.keys()]
-        #     for sID in query:
-        #         # print(sID)
-        #         # print(FastaSequences.keys())
-        #         if sID[1] in FastaSequencesKeysShort:
-        #             print(f"Saving {sID[1]}")
-        #             seqPath = getDestinationFolder(sID[1], dbLocation)
-        #             seqIndex = FastaSequencesKeysLong[FastaSequencesKeysShort.index(sID[1])]
-        #             writeSequence(seqPath, sID, FastaSequences[seqIndex])
-        #             print(f"{sID[1]} saved")
-        #         else:
-        #             failedDownload.append(sID)
-            #     query = []
-            # if len(failedDownload):
-            #     print(f"\033[31mFailed to download ({len(failedDownload)}): {failedDownload}\033[0m")
-            # failedDownload = []
-# print("Fin du téléchargement")
+        if len(query)>=numberOfSeqPerDl or i==nbseq-1 and len(query)>0:
+            entrezIDs = searchEntrez(query)
+            print(f"EntrezIDs : {len(entrezIDs)}")
+            rawSequences = fetchEntrez(entrezIDs)
+            print(f"rawSequencesIDs : {rawSequences}")
+            FastaSequences = ParseSequences(rawSequences)
+            print(f"EntrezIDs : {len(FastaSequences.keys())}")
+            FastaSequencesKeysShort = []
+            FastaSequencesKeysLong = [seqName for seqName in FastaSequences.keys()]
+            for sID in query:
+                # print(sID)
+                # print(FastaSequences.keys())
+                if sID[1] in FastaSequencesKeysShort:
+                    print(f"Saving {sID[1]}")
+                    seqPath = getDestinationFolder(sID[1], dbLocation)
+                    seqIndex = FastaSequencesKeysLong[FastaSequencesKeysShort.index(sID[1])]
+                    writeSequence(seqPath, sID, FastaSequences[seqIndex])
+                    print(f"{sID[1]} saved")
+                else:
+                    failedDownload.append(sID)
+                query = []
+            if len(failedDownload):
+                print(f"\033[31mFailed to download ({len(failedDownload)}): {failedDownload}\033[0m")
+            failedDownload = []
+print("Fin du téléchargement")
