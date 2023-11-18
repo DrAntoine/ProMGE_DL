@@ -106,18 +106,18 @@ def writeSequence(seqPath, seqName, sequence):
             seqFile.write(line)
 
 def searchEntrez(query, entrezDB = "nuccore"):
-    print("Searching Entrez IDs")
-    subQueryString = [i[1] for i in query]
-    queryString = ",".join(subQueryString)
+    print(f"Searching Entrez IDs db:{entrezDB}")
+    subQueryString = [i for i in query]
+    queryString = ", ".join(subQueryString)
     # print(queryString)
     # handle = Entrez.esearch(db="nuccore", rettype="Fasta", retmode="text", term=queryString)
-    handle = Entrez.esearch(db=entrezDB, retmode="text", term=queryString)
+    handle = Entrez.esearch(db=entrezDB, rettype="fasta", retmode="text", term=queryString, idtype="acc")
     records = Entrez.read(handle)
     handle.close()
     return records["IdList"]
 
 def fetchEntrez(entrezIDs, entrezDB = "nuccore"):
-    print("Fetching sequences")
+    print(f"Fetching sequences on db:{entrezDB}")
     handle = Entrez.efetch(db=entrezDB, id=entrezIDs, rettype="fasta", retmode="text")
     data = handle.readlines()
     handle.close()
@@ -158,43 +158,54 @@ def readFile(filePath, filters):
                 currentLine+=1
     return sequencesID
 
-def downloadSeq(seqIDs, dbLocation):
+def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
     fullListOfFailed = []
     with alive_bar(len(seqIDs)) as bar:
         query = []
-        numberOfSeqPerDl = 10
+        numberOfSeqPerDl = 20
         failedDownload = []
+        
         for i in range(len(seqIDs)): #seqID in seqIDs:
             query.append(seqIDs[i])
         # print(len(seqIDs))
             # if seqID not in query:
             if len(query)>=numberOfSeqPerDl or i==len(seqIDs)-1 and len(query)>0:
-                entrezIDs = searchEntrez(query)
-                print(f"EntrezIDs : {len(entrezIDs)}")
-                rawSequences = fetchEntrez(entrezIDs)
-                print(f"rawSequencesIDs : {len(rawSequences)}")
+                # string = "ID :"
+                # for q in query:
+                #     string +=f" \033[37m{q}\033[0m,"
+                # print(string[:-1])
+                entrezIDs = searchEntrez(query, entrezDB)
+                # print(f"EntrezIDs : {len(entrezIDs)}")
+                rawSequences = fetchEntrez(entrezIDs, entrezDB)
+                # print(f"rawSequencesIDs : {len(rawSequences)}")
                 FastaSequences = ParseSequences(rawSequences)
-                print(f"EntrezIDs : {len(FastaSequences.keys())}")
-                # FastaSequencesKeysShort = []
+                # print(f"EntrezIDs : {len(FastaSequences.keys())}")
+                FastaSequencesKeysShort = [seqName.split(".")[0] for seqName in FastaSequences.keys()]
                 FastaSequencesKeys = [seqName for seqName in FastaSequences.keys()]
-                print(FastaSequencesKeys)
-
+                # print(FastaSequencesKeys)
                 for sID in query:
                     # print(sID)
                     # print(FastaSequences.keys())
-                    if sID in FastaSequencesKeys:
-                        print(f"Saving {sID}")
+                    if sID in FastaSequencesKeysShort:
+                        # print(f"Saving {sID}")
                         seqPath = getDestinationFolder(sID, dbLocation)
                         # seqIndex = FastaSequencesKeysLong[FastaSequencesKeysShort.index(sID[1])]
-                        writeSequence(seqPath, sID, FastaSequences[sID])
-                        print(f"{sID} saved")
+                        writeSequence(seqPath, sID, FastaSequences[FastaSequencesKeys[FastaSequencesKeysShort.index(sID)]])
+                        # print(f"{sID} saved")
                     else:
                         failedDownload.append(sID)
-                    query = []
+                    bar()
+                string = "ID :"
+                for q in query:
+                    if q in failedDownload:
+                        string += f" \033[31m{q}\033[0m,"
+                    else:
+                        string += f" \033[92m{q}\033[0m,"
+                print(string[:-1])
                 if len(failedDownload):
-                    print(f"\033[31mFailed to download ({len(failedDownload)}): {failedDownload}\033[0m")
                     fullListOfFailed+=failedDownload
                 failedDownload = []
+                query = []
     return fullListOfFailed
 
 
@@ -204,6 +215,7 @@ indexFile = "D:/bioDB/ProMGE/mges.txt"
 dbLocation = "D:/bioDB/ProMGE/sequencesData"
 
 # indexSequenceFile = "/mnt/h/bioDB/ProMGE/indexSequences.txt"
+
 
 # data = pandas.read_table(indexFile, sep="\t")
 filters = {
