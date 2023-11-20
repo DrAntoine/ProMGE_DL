@@ -1,9 +1,10 @@
-import pandas, os, re
-from alive_progress import alive_bar
+import os, re
+# from alive_progress import alive_bar
+from tqdm import tqdm
 from Bio import Entrez
 
 class noeud:
-    
+
     def __init__(self, IdPere, value, idFilsG=None, idFrereD=None) -> None:
         self.pere = IdPere
         self.content=value
@@ -11,10 +12,10 @@ class noeud:
         self.frereD = idFrereD
 
 def makeFilteredTree(sequences):
-    tree = []
-    tree.append(noeud(IdPere=None, value="START"))
+    tree = [noeud(IdPere=None, value="START")]
     nbseq = len(sequences)
-    with alive_bar(nbseq) as bar: 
+    # with alive_bar(nbseq) as bar:
+    with tqdm(total=nbseq, desc="Sorting accession numbers (1/2)") as pbar:
         for i in range(nbseq):
             # seqID = data["mge_genome_position"][i].split(":")[0].split(".")[2]
             seqID = sequences[i]
@@ -22,27 +23,29 @@ def makeFilteredTree(sequences):
             nodeIndex=0
             for char in seqID:
                 node = tree[nodeIndex]
-                if node.filsG == None:
+                if node.filsG is None:
                     tree.append(noeud(IdPere=nodeIndex, value=char))
                     tree[nodeIndex].filsG=len(tree)-1
                     nodeIndex=tree[nodeIndex].filsG
                 else:
                     childNodeindex = node.filsG
-                    childNode = tree[childNodeindex] 
+                    childNode = tree[childNodeindex]
                     while childNode.content != char :# and childNode.frereD != None :
-                        if childNode.frereD == None:
+                        if childNode.frereD is None:
                             tree.append(noeud(IdPere=nodeIndex, value=char))
                             childNode.frereD = len(tree)-1
                         else:
                             childNodeindex = childNode.frereD
-                        childNode = tree[childNodeindex] 
+                        childNode = tree[childNodeindex]
                     nodeIndex=childNodeindex
-            bar()
+            # bar()
+            pbar.update()
     return tree
 
 def extractSequenceIDFromTree(tree):
     sequencesID = []
-    with alive_bar(len(tree)-1) as bar:
+    # with alive_bar(len(tree)-1) as bar:
+    with tqdm(total=len(tree)-1, desc="Sorting accession numbers (2/2)") as pbar:
         while len(tree)>1:
             seq = ""
             node = tree[-1]
@@ -61,7 +64,6 @@ def extractSequenceIDFromTree(tree):
                         tree[node.pere].filsG = None
                         newindexToRemove=node.pere
                         del tree[indexToRemove]
-                        bar()
                         indexToRemove = newindexToRemove
                     else:
                         child=tree[tree[node.pere].filsG]
@@ -69,25 +71,25 @@ def extractSequenceIDFromTree(tree):
                             child=tree[child.frereD]
                         child.frereD = None
                         del tree[indexToRemove]
-                        bar()
+                    pbar.update()
                 node = tree[node.pere]
     return sequencesID
 
 def ParseSequences(stream):
     print("Parsing data")
     sequences = {}
-    id = None
+    seqid = None
     buffer = []
+    print(stream)
+    input("wait")
     for line in stream:
         if ">" in line:
             if id:
                 sequences[id] = buffer
                 buffer = []
-            id = line[1:].split(" ")[0]
-            buffer.append(line)
-        else:
-            buffer.append(line)
-    sequences[id] = buffer
+            seqid = line[1:].split(" ")[0]
+        buffer.append(line)
+    sequences[seqid] = buffer
     return sequences
 
 def getDestinationFolder(sequence,dbLocation):
@@ -107,7 +109,7 @@ def writeSequence(seqPath, seqName, sequence):
 
 def searchEntrez(query, entrezDB = "nuccore"):
     print(f"Searching Entrez IDs db:{entrezDB}")
-    subQueryString = [i for i in query]
+    subQueryString = list(query)
     queryString = ", ".join(subQueryString)
     # print(queryString)
     # handle = Entrez.esearch(db="nuccore", rettype="Fasta", retmode="text", term=queryString)
@@ -138,11 +140,12 @@ def readFile(filePath, filters):
     with open(filePath, "rb") as dbfile:
         count_generator = __count_generator__(dbfile.raw.read)
         lineCount = sum(buffer.count(b'\n') for buffer in count_generator)
-    print(lineCount)
+    # print(lineCount)
     currentLine = 0
-    with alive_bar(lineCount) as bar:
+    # with alive_bar(lineCount) as bar:
+    with tqdm(total=lineCount, desc="Extracting accession numbers") as pbar:
         with open(filePath, "r") as dbfile:
-            for line in dbfile.readlines():
+            for line in dbfile:
                 lineSplited = line.split("\t")
                 if currentLine == 0:
                     dbindex = lineSplited
@@ -154,27 +157,32 @@ def readFile(filePath, filters):
                             break
                     if acceptLine:
                         sequencesID.append(lineSplited[0].split(":")[0].split(".")[2])
-                bar()
+                # bar()
+                pbar.update()
                 currentLine+=1
     return sequencesID
 
 def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
     fullListOfFailed = []
-    with alive_bar(len(seqIDs)) as bar:
+    entrezDB = "nuccore"
+    # with alive_bar(len(seqIDs)) as bar:
+    with tqdm(total=len(seqIDs), desc="Downloading sequences") as pbar:
         query = []
         numberOfSeqPerDl = 20
         failedDownload = []
-        
+
         for i in range(len(seqIDs)): #seqID in seqIDs:
             query.append(seqIDs[i])
         # print(len(seqIDs))
             # if seqID not in query:
             if len(query)>=numberOfSeqPerDl or i==len(seqIDs)-1 and len(query)>0:
                 succes = False
+                FastaSequences = None
+
                 for trydl in range(3):
-                    FastaSequences = None
                     try:
                         entrezIDs = searchEntrez(query, entrezDB)
+                        if entrezIDs == []: raise ValueError("Idlist problem")
                         rawSequences = fetchEntrez(entrezIDs, entrezDB)
                         FastaSequences = ParseSequences(rawSequences)
                     except RuntimeError as error:
@@ -183,18 +191,23 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
                     except:
                         print("Un problème est survenu !")
                         print("Erreur non gérée")
-                    if FastaSequences != None:
+                    if FastaSequences is not None:
                         succes = True
                         break
                     else:
                         print(f'Try {trydl+1} failed')
+                
+                print(FastaSequences)
                 if not succes:
                     for sID in query:
                         failedDownload.append(sID)
-                        bar()
+                        # bar()
+                        pbar.update()
                 else:
-                    FastaSequencesKeysShort = [seqName.split(".")[0] for seqName in FastaSequences.keys()]
-                    FastaSequencesKeys = [seqName for seqName in FastaSequences.keys()]
+                    for seqName in FastaSequences.keys():
+                        print(seqName)
+                    FastaSequencesKeysShort = [seqName.split(".")[0] for seqName in FastaSequences.keys() if seqName is not None ]
+                    FastaSequencesKeys = list(FastaSequences.keys())
                 # print(FastaSequencesKeys)
                     for sID in query:
                         # print(sID)
@@ -207,7 +220,8 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
                             # print(f"{sID} saved")
                         else:
                             failedDownload.append(sID)
-                        bar()
+                        # bar()
+                        pbar.update()
                 string = "ID :"
                 for q in query:
                     if q in failedDownload:
@@ -222,13 +236,12 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
     return fullListOfFailed
 
 
-# indexFile = "/mnt/d/bioDB/ProMGE/mges.txt"
-indexFile = "H:/bioDB/ProMGE/mges.txt"
-# dbLocation = "/mnt/d/bioDB/ProMGE/sequencesData"
-dbLocation = "H:/bioDB/ProMGE/sequencesData"
+indexFile = "/mnt/d/bioDB/ProMGE/mges.txt"
+# indexFile = "H:/bioDB/ProMGE/mges.txt"
+dbLocation = "/mnt/d/bioDB/ProMGE/sequencesData"
+# dbLocation = "H:/bioDB/ProMGE/sequencesData"
 
 # indexSequenceFile = "/mnt/h/bioDB/ProMGE/indexSequences.txt"
-
 
 # data = pandas.read_table(indexFile, sep="\t")
 filters = {

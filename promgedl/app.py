@@ -7,9 +7,10 @@ import logging
 
 
 from promgedl.version import __version__
+from promgedl.download import download
 
 def main():
-    description = "Script to download the ProMGE database"
+    description = "Script faciliting the use of the ProMGE database"
     softwareName = "promgedl"
     parser = argparse.ArgumentParser(
         prog=softwareName,
@@ -26,8 +27,26 @@ def main():
         help="print software version and exit",
         required=False
     )
+    subparser = parser.add_subparsers(
+        title="available subcommands",
+        metavar=""
+    )
 
-    parser.add_argument(
+    parser_download = subparser.add_parser(
+        "download",
+        prog = f"{softwareName} download",
+        description = "index and sequence download module",
+        help=f"{softwareName}: download module"
+    )
+
+    parser_access = subparser.add_parser(
+        "access", 
+        prog = f"{softwareName} access",
+        description= "local database access module (Sequences + MGEs)",
+        help=f"{softwareName}: access module"
+    )
+
+    parser_download.add_argument(
         "-p",
         "--promge",
         type=str,
@@ -36,7 +55,7 @@ def main():
         required=False
     )
 
-    parser.add_argument(
+    parser_download.add_argument(
         "-o",
         "--output",
         type=str,
@@ -44,15 +63,32 @@ def main():
         required=True
     )
 
-    parser.add_argument(
+    parser_download.add_argument(
         "-@",
         "--email",
         type=str,
         required=True,
         help="email adress to use Entrez API"
     )
-    parserlogging = parser.add_mutually_exclusive_group()
-    parserlogging.add_argument(
+
+    parser_download.add_argument(
+        "-u",
+        "--update",
+        action="store_true",
+        default=False,
+        help="\033[91m[DANGER]\033[0m Overwrites existing data in the destination folder"
+    )
+
+    parser_download.add_argument(
+        "-c",
+        "--clean",
+        action="store_true",
+        default=False,
+        help="\033[91m[DANGER]\033[0m Overwrites existing data in the destination folder"
+    )
+
+    parserloggingDL = parser_download.add_mutually_exclusive_group()
+    parserloggingDL.add_argument(
         "-q",
         "--quiet",
         action="store_true",
@@ -60,13 +96,15 @@ def main():
         help="disable info logging"
     )
 
-    parserlogging.add_argument(
+    parserloggingDL.add_argument(
         "-d",
         "--debug",
         action="store_true",
         default=False,
         help="overwhelms the terminal with debug information"
     )
+
+    parser_download.set_defaults(func=download.run)
 
     args = parser.parse_args()
 
@@ -83,6 +121,7 @@ def main():
         logger = logging.getLogger(__name__)
         logger.info(f"Using {__name__} version {__version__}")
         logger.debug(f"Using Debug logger")
+        args.func(args)
         logging.shutdown()
     except AttributeError as err:
         logger = logging.getLogger(__name__)

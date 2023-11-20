@@ -6,7 +6,7 @@ from promgedl.version import __version__
 from setuptools import setup, find_packages
 
 url = "https://github.com/DrAntoine/ProMGE_DL"
-desc = "Download the ProMGE database and sequences associated"
+desc = "A tool to easily use the ProMGE database and associated sequences"
 
 setup(
     name="promgedl",
@@ -20,7 +20,12 @@ setup(
     license="MIT",
     packages=find_packages(),
 
-    entry_point={
+    install_requires = [
+        "biopython==1.81",
+        "tqdm"
+    ],
+
+    entry_points={
         "console_scripts": ["promgedl = promgedl.app:main"],
     }
 )
