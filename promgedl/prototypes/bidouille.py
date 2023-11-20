@@ -170,31 +170,44 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
         # print(len(seqIDs))
             # if seqID not in query:
             if len(query)>=numberOfSeqPerDl or i==len(seqIDs)-1 and len(query)>0:
-                # string = "ID :"
-                # for q in query:
-                #     string +=f" \033[37m{q}\033[0m,"
-                # print(string[:-1])
-                entrezIDs = searchEntrez(query, entrezDB)
-                # print(f"EntrezIDs : {len(entrezIDs)}")
-                rawSequences = fetchEntrez(entrezIDs, entrezDB)
-                # print(f"rawSequencesIDs : {len(rawSequences)}")
-                FastaSequences = ParseSequences(rawSequences)
-                # print(f"EntrezIDs : {len(FastaSequences.keys())}")
-                FastaSequencesKeysShort = [seqName.split(".")[0] for seqName in FastaSequences.keys()]
-                FastaSequencesKeys = [seqName for seqName in FastaSequences.keys()]
-                # print(FastaSequencesKeys)
-                for sID in query:
-                    # print(sID)
-                    # print(FastaSequences.keys())
-                    if sID in FastaSequencesKeysShort:
-                        # print(f"Saving {sID}")
-                        seqPath = getDestinationFolder(sID, dbLocation)
-                        # seqIndex = FastaSequencesKeysLong[FastaSequencesKeysShort.index(sID[1])]
-                        writeSequence(seqPath, sID, FastaSequences[FastaSequencesKeys[FastaSequencesKeysShort.index(sID)]])
-                        # print(f"{sID} saved")
+                succes = False
+                for trydl in range(3):
+                    FastaSequences = None
+                    try:
+                        entrezIDs = searchEntrez(query, entrezDB)
+                        rawSequences = fetchEntrez(entrezIDs, entrezDB)
+                        FastaSequences = ParseSequences(rawSequences)
+                    except RuntimeError as error:
+                        print("Un problème est survenu !")
+                        print(error)
+                    except:
+                        print("Un problème est survenu !")
+                        print("Erreur non gérée")
+                    if FastaSequences != None:
+                        succes = True
+                        break
                     else:
+                        print(f'Try {trydl+1} failed')
+                if not succes:
+                    for sID in query:
                         failedDownload.append(sID)
-                    bar()
+                        bar()
+                else:
+                    FastaSequencesKeysShort = [seqName.split(".")[0] for seqName in FastaSequences.keys()]
+                    FastaSequencesKeys = [seqName for seqName in FastaSequences.keys()]
+                # print(FastaSequencesKeys)
+                    for sID in query:
+                        # print(sID)
+                        # print(FastaSequences.keys())
+                        if sID in FastaSequencesKeysShort:
+                            # print(f"Saving {sID}")
+                            seqPath = getDestinationFolder(sID, dbLocation)
+                            # seqIndex = FastaSequencesKeysLong[FastaSequencesKeysShort.index(sID[1])]
+                            writeSequence(seqPath, sID, FastaSequences[FastaSequencesKeys[FastaSequencesKeysShort.index(sID)]])
+                            # print(f"{sID} saved")
+                        else:
+                            failedDownload.append(sID)
+                        bar()
                 string = "ID :"
                 for q in query:
                     if q in failedDownload:
@@ -210,9 +223,9 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
 
 
 # indexFile = "/mnt/d/bioDB/ProMGE/mges.txt"
-indexFile = "D:/bioDB/ProMGE/mges.txt"
+indexFile = "H:/bioDB/ProMGE/mges.txt"
 # dbLocation = "/mnt/d/bioDB/ProMGE/sequencesData"
-dbLocation = "D:/bioDB/ProMGE/sequencesData"
+dbLocation = "H:/bioDB/ProMGE/sequencesData"
 
 # indexSequenceFile = "/mnt/h/bioDB/ProMGE/indexSequences.txt"
 
