@@ -80,8 +80,8 @@ def ParseSequences(stream):
     sequences = {}
     seqid = None
     buffer = []
-    print(stream)
-    input("wait")
+    # print(stream)
+    # input("wait")
     for line in stream:
         if ">" in line:
             if id:
@@ -151,6 +151,9 @@ def readFile(filePath, filters):
                     dbindex = lineSplited
                 else:
                     acceptLine = True
+                    # for i, j in zip(lineSplited, dbindex):
+                    #     print(f"\033[36m{j:>20}:\033[0m{i}")
+                    # input("wait")
                     for filter in filters.keys():
                         if filters[filter] != ["*"] and lineSplited[dbindex.index(filter)] not in filters[filter]:
                             acceptLine = False
@@ -183,14 +186,17 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
                     try:
                         entrezIDs = searchEntrez(query, entrezDB)
                         if entrezIDs == []: raise ValueError("Idlist problem")
+                        entrezIDs = []
                         rawSequences = fetchEntrez(entrezIDs, entrezDB)
+                        print(rawSequences)
+                        input()
                         FastaSequences = ParseSequences(rawSequences)
-                    except RuntimeError as error:
+                    except Exception as error:
                         print("Un problème est survenu !")
                         print(error)
-                    except:
-                        print("Un problème est survenu !")
-                        print("Erreur non gérée")
+                    # except Exception as err:
+                    #     print("Un problème est survenu !")
+                    #     print("Erreur non gérée")
                     if FastaSequences is not None:
                         succes = True
                         break
@@ -222,23 +228,23 @@ def downloadSeq(seqIDs, dbLocation, entrezDB = "nucleotide"):
                             failedDownload.append(sID)
                         # bar()
                         pbar.update()
-                string = "ID :"
-                for q in query:
-                    if q in failedDownload:
-                        string += f" \033[31m{q}\033[0m,"
-                    else:
-                        string += f" \033[92m{q}\033[0m,"
-                print(string[:-1])
-                if len(failedDownload):
-                    fullListOfFailed+=failedDownload
-                failedDownload = []
-                query = []
+                # string = "ID :"
+                # for q in query:
+                #     if q in failedDownload:
+                #         string += f" \033[31m{q}\033[0m,"
+                #     else:
+                #         string += f" \033[92m{q}\033[0m,"
+                # print(string[:-1])
+                # if len(failedDownload):
+                #     fullListOfFailed+=failedDownload
+                # failedDownload = []
+                # query = []
     return fullListOfFailed
 
 
-indexFile = "/mnt/d/bioDB/ProMGE/mges.txt"
+indexFile = "/mnt/h/bioDB/ProMGE/mges.txt"
 # indexFile = "H:/bioDB/ProMGE/mges.txt"
-dbLocation = "/mnt/d/bioDB/ProMGE/sequencesData"
+dbLocation = "/mnt/h/bioDB/ProMGE/sequencesData"
 # dbLocation = "H:/bioDB/ProMGE/sequencesData"
 
 # indexSequenceFile = "/mnt/h/bioDB/ProMGE/indexSequences.txt"
@@ -255,7 +261,6 @@ if len(sequences)== 0:
 
 # if not os.path.exists(dbLocation):
     # os.mkdir(dbLocation)
-
 sequencesID = extractSequenceIDFromTree(makeFilteredTree(sequences))
 sequencesID.sort()
 

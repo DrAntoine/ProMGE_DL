@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 biopython = "*"
 tqdm = "*"
+requests = "*"
 
 [dev-packages]
 
