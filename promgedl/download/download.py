@@ -1,7 +1,5 @@
 import os, logging
 
-from Bio import Entrez
-
 from promgedl.download.tools import * #checkDirectoryStructure, checkIndexFile, downloadIndex, extractSeqencesIdFromIndexFile
 
 def run(args):

@@ -225,25 +225,10 @@ def main():
         "--speciesLevel",
         type=str,
         default=["*"],
-        help="Only sequences in the species(s) specified here will be downloaded if they are present in the index file",
+        help="Only sequences in the species(s) specified here will be downloaded if they are present in the index file.",
         nargs="+"
     )
 
-    # parser_download.add_argument(
-    #     "-u",
-    #     "--update",
-    #     action="store_true",
-    #     default=False,
-    #     help="\033[91m[DANGER]\033[0m Overwrites existing data in the destination folder"
-    # )
-
-    # parser_download.add_argument(
-    #     "-c",
-    #     "--clean",
-    #     action="store_true",
-    #     default=False,
-    #     help="\033[91m[DANGER]\033[0m Overwrites existing data in the destination folder"
-    # )
 
     parserloggingDL = parser_download.add_mutually_exclusive_group()
     parserloggingDL.add_argument(
@@ -263,9 +248,8 @@ def main():
     )
 
     parser_download.set_defaults(func=download.run)
-
     args = parser.parse_args()
-        
+
     try:
         logger = logging.getLogger(__name__)
 

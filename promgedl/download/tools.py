@@ -1,9 +1,10 @@
-import os, requests, shutil, datetime, logging
+import os, shutil, datetime, logging
 from zipfile import ZipFile
 
 from tqdm.auto import tqdm
-from Bio import Entrez
 
+from Bio import Entrez
+import requests
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,6 @@ def downloadIndex(url, indexLocation):
     logger.debug("downloadIndex function")
     with requests.get(url, stream=True) as req:
         totalLength = int(req.headers.get("Content-Length"))
-
         with tqdm.wrapattr(req.raw, "read", total=totalLength, desc="Downloading index file") as rawdata:
             with open(f"{indexLocation}/mges.zip", "wb") as outputfile:
                 shutil.copyfileobj(rawdata, outputfile)
@@ -100,44 +100,44 @@ def applyFilters(line, dbindex, args):
     s_species = line[dbindex.index("species")]
 
     if args.seqID!=["*"] and seqID not in args.seqID:
-        logger.debug("seqID filter")
+        # logger.debug("seqID filter")
         return None
     if args.genomeID!=["*"] and genome not in args.genomeID:
-        logger.debug("genomeID filter")
+        # logger.debug("genomeID filter")
         return None
     if args.taxID!=["*"] and taxid not in args.taxID:
-        logger.debug(f"taxID filter: {taxid} not in {args.taxID}")
+        # logger.debug(f"taxID filter: {taxid} not in {args.taxID}")
         return None
     
     if args.mgeMinLen and mge_length>=0 and args.mgeMinLen >=0 and mge_length <= args.mgeMinLen:
-        logger.debug("mgeMinLen filter")
+        # logger.debug("mgeMinLen filter")
         return None
     if args.mgeMaxLen and mge_length>=0 and args.mgeMaxLen >=0 and mge_length > args.mgeMaxLen:
-        logger.debug("mgeMaxLen filter")
+        # logger.debug("mgeMaxLen filter")
         return None
     if args.minNbProt and number_of_proteins>=0 and args.minNbProt >=0 and number_of_proteins <= args.minNbProt:
-        logger.debug("minNbProt filter")
+        # logger.debug("minNbProt filter")
         return None
     if args.maxNbProt and number_of_proteins>=0 and args.maxNbProt >=0 and number_of_proteins > args.maxNbProt:
-        logger.debug("maxNbProt filter")
+        # logger.debug("maxNbProt filter")
         return None
     if args.minNbPhageGene and nb_phage_genes>=0 and args.minNbPhageGene >=0 and nb_phage_genes <= args.minNbPhageGene:
-        logger.debug("minNbPhageGene filter")
+        # logger.debug("minNbPhageGene filter")
         return None
     if args.maxNbPhageGene and nb_phage_genes>=0 and args.maxNbPhageGene >=0 and nb_phage_genes > args.maxNbPhageGene:
-        logger.debug("maxNbPhageGene filter")
+        # logger.debug("maxNbPhageGene filter")
         return None
     if args.minNbConjGene and nb_conjugation_genes>=0 and args.minNbConjGene >=0 and nb_conjugation_genes <= args.minNbConjGene:
-        logger.debug("minNbConjGene filter")
+        # logger.debug("minNbConjGene filter")
         return None
     if args.maxNbConjGene and nb_conjugation_genes>=0 and args.maxNbConjGene >=0 and nb_conjugation_genes > args.maxNbConjGene:
-        logger.debug("maxNbConjGene filter")
+        # logger.debug("maxNbConjGene filter")
         return None
     if args.minCount and count>=0 and args.minCount >=0 and count <= args.minCount:
-        logger.debug("minCount filter")
+        # logger.debug("minCount filter")
         return None
     if args.maxCount and count>=0 and args.maxCount >=0 and count > args.maxCount:
-        logger.debug("maxCount filter")
+        # logger.debug("maxCount filter")
         return None
 
     if args.recombinase!=["*"]:
@@ -147,7 +147,7 @@ def applyFilters(line, dbindex, args):
             if r in args.recombinase:
                 accept = True
         if not accept:
-            logger.debug("recombinase filter")
+            # logger.debug("recombinase filter")
             return None
     if args.mgeCategory!=["*"]:
         accept = False
@@ -156,7 +156,7 @@ def applyFilters(line, dbindex, args):
             if m in args.mgeCategory:
                 accept = True
         if not accept:
-            logger.debug("mgeCategory filter")
+            # logger.debug("mgeCategory filter")
             return None
     if args.specI!=["*"]:
         accept = False
@@ -165,29 +165,29 @@ def applyFilters(line, dbindex, args):
             if s in args.specI:
                 accept = True
         if not accept:
-            logger.debug("specI filter")
+            # logger.debug("specI filter")
             return None
     
     if args.kingdomLevel!=["*"] and s_kingdom not in args.kingdomLevel:
-        logger.debug("kingdomLevel filter")
+        # logger.debug("kingdomLevel filter")
         return None
     if args.phylumLevel!=["*"] and s_phylum not in args.phylumLevel:
-        logger.debug("phylumLevel filter")
+        # logger.debug("phylumLevel filter")
         return None
     if args.classLevel!=["*"] and s_class not in args.classLevel:
-        logger.debug("classLevel filter")
+        # logger.debug("classLevel filter")
         return None
     if args.orderLevel!=["*"] and s_order not in args.orderLevel:
-        logger.debug("orderLevel filter")
+        # logger.debug("orderLevel filter")
         return None
     if args.familyLevel!=["*"] and s_family not in args.familyLevel:
-        logger.debug("familyLevel filter")
+        # logger.debug("familyLevel filter")
         return None
     if args.genusLevel!=["*"] and s_genus not in args.genusLevel:
-        logger.debug("genusLevel filter")
+        # logger.debug("genusLevel filter")
         return None
     if args.speciesLevel!=["*"] and s_species not in args.speciesLevel:
-        logger.debug("speciesLevel filter")
+        # logger.debug("speciesLevel filter")
         return None
 
     return seqID
@@ -283,23 +283,25 @@ def extractSequenceIDFromTree(tree):
     return sequencesID
 
 def searchEntrez(query, entrezDB = "nuccore"):
-    print(f"Searching Entrez IDs db:{entrezDB}")
+    logger.debug(f"Searching Entrez IDs db:{entrezDB}")
     subQueryString = list(query)
     queryString = ", ".join(subQueryString)
+    logger.debug(f"queryString: {queryString}")
     handle = Entrez.esearch(db=entrezDB, rettype="fasta", retmode="text", term=queryString, idtype="acc")
     records = Entrez.read(handle)
+    logger.debug(records)
     handle.close()
     return records["IdList"]
 
 def fetchEntrez(entrezIDs, entrezDB = "nuccore"):
-    print(f"Fetching sequences on db:{entrezDB}")
+    logger.debug(f"Fetching sequences on db:{entrezDB}")
     handle = Entrez.efetch(db=entrezDB, id=entrezIDs, rettype="fasta", retmode="text")
     data = handle.readlines()
     handle.close()
     return data
 
 def ParseSequences(stream):
-    print("Parsing data")
+    logger.debug("Parsing data")
     sequences = {}
     seqID = None
     buffer = []
@@ -308,9 +310,9 @@ def ParseSequences(stream):
             if seqID:
                 sequences[seqID] = buffer
                 buffer = []
-            seqid = line[1:].split(" ")[0]
+            seqID = line[1:].split(" ")[0]
         buffer.append(line)
-    sequences[seqid] = buffer
+    sequences[seqID] = buffer
     return sequences
 
 def getDestinationFolder(sequence,dbLocation):
@@ -329,9 +331,9 @@ def writeSequence(seqPath, seqName, sequence):
             seqFile.write(line)
 
 def downloadSeq(seqIDs, dbLocation, entrezEmail, entrezAPI=""):
-    downloadByStep = 25
+    downloadByStep = 15
     failedDownload = []
-    entrezDB = "nuccore"
+    entrezDB = "nucleotide"
     Entrez.email = entrezEmail
     if entrezAPI != "":
         Entrez.api_key = entrezAPI
@@ -343,13 +345,16 @@ def downloadSeq(seqIDs, dbLocation, entrezEmail, entrezAPI=""):
             for downloadAttempt in range(3):
                 try:
                     entrezIDs = searchEntrez(query, entrezDB)
+                    logger.debug(f"EntrezIDs : {entrezIDs}")
                     if entrezIDs == []:
                         raise DownloadError("No ID found in Entrez database")
                     rawsequences = fetchEntrez(entrezIDs, entrezDB)
-                    if len(rawsequences)<=1:
-                        raise DownloadError(f"fetchEntrez Error : {rawsequences[0]}")
+                    # if len(rawsequences)<=1:
+                    #     raise DownloadError(f"fetchEntrez Error : {rawsequences[0]}")
                     fastaDict = ParseSequences(rawsequences)
-                    break
+                    logger.debug(fastaDict.keys())
+                    if fastaDict is not None:
+                        break
                 except DownloadError as err:
                     logger.error(err)
                 logger.info(f"Download attempt {downloadAttempt} failed")

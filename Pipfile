@@ -7,6 +7,7 @@ name = "pypi"
 biopython = "*"
 tqdm = "*"
 requests = "*"
+alive-progress = "*"
 
 [dev-packages]
 

@@ -21,11 +21,12 @@ setup(
     packages=find_packages(),
 
     install_requires = [
-        "biopython==1.81",
-        "tqdm"
-    ],
+        "requests ~= 2.31.0",
+        "biopython ~= 1.81",
+        "tqdm ~= 4.66.1"
+        ],
 
     entry_points={
         "console_scripts": ["promgedl = promgedl.app:main"],
     }
-)
+    )
