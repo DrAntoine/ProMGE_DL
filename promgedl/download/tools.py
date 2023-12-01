@@ -1,4 +1,4 @@
-import os, shutil, datetime, logging
+import os, shutil, datetime, logging, json, signal
 from zipfile import ZipFile
 
 from tqdm.auto import tqdm
@@ -19,12 +19,16 @@ class noeud:
 class DownloadError(Exception):
     pass
 
+
 def checkDirectoryStructure(structure):
     logger.debug("checkDirectoryStructure function")
     folderStatus = []
     for s in structure.keys():
-        folderStatus.append(os.path.isdir(structure[s]))
+        fstatus = os.path.isdir(structure[s]) 
+        folderStatus.append(fstatus)
+        logger.debug(f"Exist : {fstatus} : {structure[s]}")
     if len(set(folderStatus))==2:
+        # return "Absent"
         return "Partial"
     else:
         if list(set(folderStatus))[0]==True:
@@ -32,22 +36,23 @@ def checkDirectoryStructure(structure):
         else:
             return "Absent"
     
-def downloadIndex(url, indexLocation):
+def downloadIndex(baseURL, distantFile, indexLocation):
     logger.debug("downloadIndex function")
-    with requests.get(url, stream=True) as req:
+    with requests.get(f"{baseURL}{distantFile}", stream=True) as req:
         totalLength = int(req.headers.get("Content-Length"))
-        with tqdm.wrapattr(req.raw, "read", total=totalLength, desc="Downloading index file") as rawdata:
-            with open(f"{indexLocation}/mges.zip", "wb") as outputfile:
+        with tqdm.wrapattr(req.raw, "read", total=totalLength, desc=f"Downloading {distantFile}") as rawdata:
+            with open(f"{indexLocation}/{distantFile}", "wb") as outputfile:
                 shutil.copyfileobj(rawdata, outputfile)
-    with ZipFile(f"{indexLocation}/mges.zip","r") as zipObj:
-        zipObj.extractall(indexLocation)
+    if distantFile.split(".")[-1] == "zip":
+        with ZipFile(f"{indexLocation}/{distantFile}","r") as zipObj:
+            zipObj.extractall(indexLocation)
 
 def checkIndexFile(indexLocation):
     logger.debug("checkIndexFile function")
     numberOfDaysBeforeDownloadAgain = 7
     logger.debug(indexLocation)
     if not os.path.exists(indexLocation):
-        logger.debug(f"The archive does not exit. It will be downloaded")
+        logger.debug(f"The archive does not exist. It will be downloaded")
         return False
     logger.debug("mges zipfile exist")
     lastModified = os.path.getmtime(indexLocation)
@@ -79,7 +84,7 @@ def convertToInt(string):
     except:
         return -1
 
-def applyFilters(line, dbindex, args):
+def applyFiltersMGETXT(line, dbindex, args):
     mgeSequenceIdentifier = line[0]
     sequenceIdentifier, mgePositionStartEnd = mgeSequenceIdentifier.split(":")
     taxid, genome, seqID = sequenceIdentifier.split(".")
@@ -206,9 +211,34 @@ def extractSequencesIdFromIndexFile(indexPath, args):
                     indexFileIndex = splitedLine
                     logger.debug(f"IndexFileIndex : {indexFileIndex}")
                 else:
-                    sequenceID = applyFilters(splitedLine, indexFileIndex, args)
+                    sequenceID = applyFiltersMGETXT(splitedLine, indexFileIndex, args)
                     if sequenceID:
                         sequencesIDList.append(sequenceID)
+                pbar.update()
+    return sequencesIDList
+
+def extractSequencesIdFromIndexFile2(indexPath, file):
+    logger.debug("extractSeqencesIdFromIndexFile2 function")
+    if ".zip" in file:
+        indexPath = f'{indexPath}/{file[:-4]}'
+    else:
+        indexPath = f'{indexPath}/{file}'
+    actualLine = 0
+    indexFileIndex = []
+    sequencesIDList = []
+    with tqdm(total=estimateFileLength(indexPath), desc=f"Extracting accession numbers from {file}") as pbar:
+        with open(indexPath, "r") as indexFile:
+            for line in indexFile:
+                actualLine+=1
+                splitedLine = line.strip().split("\t")
+                if actualLine==1:
+                    indexFileIndex = splitedLine
+                    logger.debug(f"IndexFileIndex : {indexFileIndex}")
+                else:
+                    pass
+                    # sequenceID = applyFiltersMGETXT(splitedLine, indexFileIndex, args)
+                    # if sequenceID:
+                    #     sequencesIDList.append(sequenceID)
                 pbar.update()
     return sequencesIDList
 
@@ -222,39 +252,103 @@ def displaySeqIds(seqIDs):
     if line != "":
         logger.info(line[:-1])
     logger.info(f"Total: {len(seqIDs)} sequence(s)")
-    
 
-def makeFilteredTree(sequences):
-    tree = [noeud(IdPere=None, value="START")]
+def makeFilteredTree(sequences, tree=None):
+    if tree is None:
+        tree = createEmptyTree()
     nbseq = len(sequences)
-    with tqdm(total=nbseq, desc="Sorting accession numbers (1/2)") as pbar:
+    with tqdm(total=nbseq, desc="Constructing index") as pbar:
         for i in range(nbseq):
             seqID = sequences[i]
-            nodeIndex=0
-            for char in seqID:
-                node = tree[nodeIndex]
-                if node.filsG is None:
-                    tree.append(noeud(IdPere=nodeIndex, value=char))
-                    tree[nodeIndex].filsG=len(tree)-1
-                    nodeIndex=tree[nodeIndex].filsG
-                else:
-                    childNodeindex = node.filsG
-                    childNode = tree[childNodeindex]
-                    while childNode.content != char :
-                        if childNode.frereD is None:
-                            tree.append(noeud(IdPere=nodeIndex, value=char))
-                            childNode.frereD = len(tree)-1
-                        else:
-                            childNodeindex = childNode.frereD
-                        childNode = tree[childNodeindex]
-                    nodeIndex=childNodeindex
+            seqID+='!'
+            tree = createBranch(tree, seqID)
             pbar.update()
     return tree
+
+def makeFilteredTreeSilent(sequences, tree=None):
+    if tree is None:
+        tree = createEmptyTree()
+    nbseq = len(sequences)
+    for i in range(nbseq):
+        seqID = sequences[i]
+        seqID+='!'
+        tree = createBranch(tree, seqID)
+    return tree
+
+def createBranch(tree, seqID):
+    nodeIndex=0
+    for char in seqID:
+        node = tree[nodeIndex]
+        if node.filsG is None:
+            tree.append(noeud(IdPere=nodeIndex, value=char))
+            tree[nodeIndex].filsG=len(tree)-1
+            nodeIndex=tree[nodeIndex].filsG
+        else:
+            childNodeindex = node.filsG
+            childNode = tree[childNodeindex]
+            while childNode.content != char :
+                if childNode.frereD is None:
+                    tree.append(noeud(IdPere=nodeIndex, value=char))
+                    childNode.frereD = len(tree)-1
+                else:
+                    childNodeindex = childNode.frereD
+                childNode = tree[childNodeindex]
+            nodeIndex=childNodeindex
+    return tree
+
+def writeTree(treeIndex, indexFolder):
+    if os.path.exists(f'{indexFolder}/downloadedSeq.tree'):
+        if os.path.exists(f'{indexFolder}/downloadedSeq.tree.old'):
+            os.remove(f'{indexFolder}/downloadedSeq.tree.old')
+        os.rename(f'{indexFolder}/downloadedSeq.tree', f'{indexFolder}/downloadedSeq.tree.old')
+    with open(f'{indexFolder}/downloadedSeq.tree',"w") as jsonTree:
+        jsonTree.write(json.dumps(packTree(treeIndex)))
+
+def createEmptyTree():
+    tree = [noeud(IdPere=None, value="START")]
+    return tree
+
+def loadTree(indexFolder) :
+
+    if os.path.isfile(f'{indexFolder}/downloadedSeq.tree') and os.stat(f'{indexFolder}/downloadedSeq.tree').st_size/(1024*1024)>0:
+        logger.debug(f"Tree exist : {os.path.isfile(f'{indexFolder}/downloadedSeq.tree')}")
+        logger.debug(f"Tree size : {os.stat(f'{indexFolder}/downloadedSeq.tree').st_size/(1024*1024)}")
+        logger.debug(f"Loading {indexFolder}/downloadedSeq.tree")
+        with open(f'{indexFolder}/downloadedSeq.tree') as jsonTree:
+            treeIndex = unpackTree(json.loads(jsonTree.read()))
+            return treeIndex
+    elif os.path.isfile(f'{indexFolder}/downloadedSeq.tree.old') and os.stat(f'{indexFolder}/downloadedSeq.tree.old').st_size >0:
+        logger.debug(f"Loading {indexFolder}/downloadedSeq.tree.old")
+        with open(f'{indexFolder}/downloadedSeq.tree.old') as jsonTree:
+            treeIndex = unpackTree(json.loads(jsonTree.read()))
+            return treeIndex
+    else:
+        logger.debug(f"Unable to load [index].tree or [index].tree.old")
+        return None
+
+def isTheItemIsInTheTree(tree, researchTarget):
+    nodeIndex=0
+    researchTarget+="!"
+    for char in researchTarget:
+        node = tree[nodeIndex]
+        if node.filsG is None:
+            return False
+        else:
+            childNodeindex = node.filsG
+            childNode = tree[childNodeindex]
+            while childNode.content != char :
+                if childNode.frereD is None:
+                    return False
+                else:
+                    childNodeindex = childNode.frereD
+                childNode = tree[childNodeindex]
+            nodeIndex=childNodeindex
+    return True
 
 def extractSequenceIDFromTree(tree):
     sequencesID = []
     # with alive_bar(len(tree)-1) as bar:
-    with tqdm(total=len(tree)-1, desc="Sorting accession numbers (2/2)") as pbar:
+    with tqdm(total=len(tree)-1, desc="Extracting index's data") as pbar:
         while len(tree)>1:
             seq = ""
             node = tree[-1]
@@ -262,6 +356,7 @@ def extractSequenceIDFromTree(tree):
                 seq+=node.content
                 node = tree[node.pere]
             seq = seq[::-1]
+            seq = seq[:-1]
             sequencesID.append(seq)
             node = tree[-1]
             indexToRemove = len(tree)-1
@@ -330,17 +425,71 @@ def writeSequence(seqPath, seqName, sequence):
         for line in sequence:
             seqFile.write(line)
 
-def downloadSeq(seqIDs, dbLocation, entrezEmail, entrezAPI=""):
-    downloadByStep = 15
+def getSeqIDS(seqIDs, querySize=15):
+    query = []
+    for seqID in seqIDs:
+        query.append(seqID)
+        if len(query) == querySize:
+            yield query
+            query = []
+    if len(query):
+        yield query
+
+def GetSequencesAlreadyDownloaded(dblocation):
+    alreadyDLseq = []
+    if os.path.exists(f"{dblocation}"):
+        indexLvL1 = os.listdir(f"{dblocation}")
+        with tqdm(total=len(indexLvL1), desc="Searching downloaded sequences") as pbar:
+            for lvl1 in indexLvL1:
+                indexLvL2 = os.listdir(f"{dblocation}/{lvl1}")
+                for lvl2 in indexLvL2:
+                    for seq in os.listdir(f"{dblocation}/{lvl1}/{lvl2}"):
+                        if ".fasta" in seq:
+                            alreadyDLseq.append(seq[:-6])
+                pbar.update()
+    return alreadyDLseq
+
+def packTree(tree):
+    packedTree = []
+    for node in tree:
+        packedTree.append([node.pere, node.content, node.filsG, node.frereD])
+    return packedTree
+
+def unpackTree(packedTree):
+    tree = []
+    for packedNode in packedTree:
+        tree.append(noeud(IdPere=packedNode[0], value=packedNode[1], idFilsG=packedNode[2], idFrereD=packedNode[3]))
+    return tree
+
+def downloadSeq(seqIDs, dbLocation, indexFolder, entrezEmail, resume, entrezAPI=""):
+    downloadByStep = 20
     failedDownload = []
     entrezDB = "nucleotide"
     Entrez.email = entrezEmail
     if entrezAPI != "":
         Entrez.api_key = entrezAPI
 
-    with tqdm(total=len(seqIDs), desc="Downloading sequences") as pbar:
-        for step in range(0, len(seqIDs), downloadByStep):
-            query = seqIDs[step: step+downloadByStep]
+    alreadyDlSeq = 0
+    treeIndex = loadTree(indexFolder)
+    if treeIndex is None:
+        alreadyDlSeqID = GetSequencesAlreadyDownloaded(dbLocation)
+        logger.info("Constructing index")
+        treeIndex = makeFilteredTree(alreadyDlSeqID)
+        writeTree(treeIndex, indexFolder)
+
+    if resume:
+        seqIDsBeforeFiltering = len(seqIDs)
+        logger.info("Preparation to resume download")
+
+        seqIDs = [seqID for seqID in seqIDs if not isTheItemIsInTheTree(tree=treeIndex, researchTarget=seqID)]
+        alreadyDlSeq = seqIDsBeforeFiltering-len(seqIDs)
+        logger.info(f"{alreadyDlSeq} sequence(s) is/are already on the disc")
+
+
+    with tqdm(total=len(seqIDs)+alreadyDlSeq, desc="Downloading sequences") as pbar:
+        pbar.update(alreadyDlSeq)
+        for query in getSeqIDS(seqIDs, downloadByStep):
+            # query = seqIDs[step: step+downloadByStep]
             fastaDict = None
             for downloadAttempt in range(3):
                 try:
@@ -352,11 +501,16 @@ def downloadSeq(seqIDs, dbLocation, entrezEmail, entrezAPI=""):
                     # if len(rawsequences)<=1:
                     #     raise DownloadError(f"fetchEntrez Error : {rawsequences[0]}")
                     fastaDict = ParseSequences(rawsequences)
+                    # if fastaDict is not None:
                     logger.debug(fastaDict.keys())
-                    if fastaDict is not None:
-                        break
                 except DownloadError as err:
                     logger.error(err)
+                except RuntimeError as err:
+                    logger.error(err)
+                except Exception as err:
+                    logger.error(err)
+                else:
+                    break
                 logger.info(f"Download attempt {downloadAttempt} failed")
             
             if fastaDict is None:
@@ -367,15 +521,23 @@ def downloadSeq(seqIDs, dbLocation, entrezEmail, entrezAPI=""):
                 fastaSeqKey = [seqID for seqID in fastaDict.keys()]
                 fastaSeqKeyShort = [seqID.split(".")[0] for seqID in fastaSeqKey]
                 localFailedDownload = []
+                localSucces = []
                 for seqID in query:
                     if seqID not in fastaSeqKeyShort:
                         localFailedDownload.append(seqID)
                     else:
                         seqPath = getDestinationFolder(seqID, dbLocation)
                         writeSequence(seqPath, seqID, fastaDict[fastaSeqKey[fastaSeqKeyShort.index(seqID)]])
-                    pbar.update()
+                        localSucces.append(seqID)
+                if len(localSucces):
+                    treeIndex = makeFilteredTreeSilent(localSucces, treeIndex)
+                    writeTree(treeIndex, indexFolder)
+                pbar.update(len(query))
                 if len(localFailedDownload):
                     logger.warning(f"Unable to download these sequences: {', '.join(localFailedDownload)}")
+                    failedDownload += localFailedDownload
+                    localFailedDownload = []
+                
     
     if len(failedDownload):
         logger.info("Summary of undownloaded IDs")

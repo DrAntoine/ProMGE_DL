@@ -1,13 +1,22 @@
-import os, logging
+import os, logging, signal
 
 from promgedl.download.tools import * #checkDirectoryStructure, checkIndexFile, downloadIndex, extractSeqencesIdFromIndexFile
+
+logger = logging.getLogger(__name__)
+
+
+def handler(signum, frame):
+    logger.critical("The stop signal has just been used!")
+    exit(1)
+ 
+signal.signal(signal.SIGINT, handler)
+
 
 def run(args):
     """
     main function for promgedl download
     """
     
-    logger = logging.getLogger(__name__)
     logger.debug("Welcome in promgedl download")
 
     logger.debug("Checking if the output folder already exist")
@@ -27,18 +36,21 @@ def run(args):
         logger.error(f"{args.output} exist but is incomplete ! Please remove this folder or change the destination path to avoid unpredictable behaviors")
         exit(1)
     elif structureHealth == "Absent":
-        logger.info(f"Creating database output folder")
-        for ds in directory_structure.keys():
+        logger.info("Creating database output folder")
+        for ds in directory_structure:
             logger.debug(f"Creating {directory_structure[ds]}")
             os.makedirs(directory_structure[ds])
 
-    if not checkIndexFile(f"{directory_structure['indexFolder']}/mges.zip"):
-        downloadIndex(url = args.promgeURL, indexLocation=f"{directory_structure['indexFolder']}/")
+    for file in args.distantFiles:
+        if not checkIndexFile(f"{directory_structure['indexFolder']}/{file}"):
+            downloadIndex(baseURL = args.promgeURL, distantFile=file, indexLocation=f"{directory_structure['indexFolder']}")
     
     if args.onlyIndex:
         exit()
+    sequencesToDownload = []
+    if 'mges.txt.zip' in args.distantFiles:
+        sequencesToDownload = extractSequencesIdFromIndexFile(f"{directory_structure['indexFolder']}/mges.txt", args)
 
-    sequencesToDownload = extractSequencesIdFromIndexFile(f"{directory_structure['indexFolder']}/mges.txt", args)
     if len(sequencesToDownload) == 0:
         logger.error("The filters applied are too strict! No sequence was accepted")
         exit()
@@ -49,5 +61,5 @@ def run(args):
         displaySeqIds(sequencesToDownloadFiltered)
         exit()
 
-    downloadSeq(sequencesToDownloadFiltered, f"{directory_structure['sequencesFolder']}/", args.email)
+    downloadSeq(sequencesToDownloadFiltered, f"{directory_structure['sequencesFolder']}/", f"{directory_structure['indexFolder']}",args.email, args.resume, entrezAPI=args.apikey)
     logger.info("Goodbye")

@@ -8,6 +8,9 @@ import logging
 
 from promgedl.version import __version__
 from promgedl.download import download
+from promgedl.misc import configureHandler
+
+
 
 def main():
     description = "Script faciliting the use of the ProMGE database"
@@ -46,12 +49,34 @@ def main():
         help=f"{softwareName}: access module"
     )
 
+    parser_check = subparser.add_parser(
+        "check", 
+        prog = f"{softwareName} check",
+        description= "local database check module (Sequences)",
+        help=f"{softwareName}: check module"
+    )
+
+    #region downloadParser
     parser_download.add_argument(
         "-o",
         "--output",
         type=str,
         help="database save location",
         required=True
+    )
+
+    parser_download.add_argument(
+        "-r",
+        "--resume",
+        action="store_true",
+        help="Allows you to resume downloading. If it is not used, the program downloads all the sequences, even those already present on the disk"
+    )
+
+    parser_download.add_argument(
+        "--apikey",
+        type=str,
+        default="",
+        help="The NCBI API key allows you to go from 3 requests per second to 10. Please note, the email and API key pair must be linked to your NCBI account otherwise the server may block you. It is not useful to put this parameter if you do not have an API key, the server will block you at 3 requests per second"
     )
 
     parser_download.add_argument(
@@ -66,9 +91,16 @@ def main():
         "-p",
         "--promgeURL",
         type=str,
-        default="https://promge.embl.de/data/mges.txt.zip",
-        help="url of mges index file",
+        default="https://promge.embl.de/data/",
+        help="URL of the promge site where the files to download are located",
         required=False
+    )
+
+    parser_download.add_argument(
+        "--distantFiles",
+        nargs="+",
+        default=["mges.txt.zip", "nested_is-tn_integrons.txt.zip", "arg_mge.txt.zip", "HGT_data.txt.zip", "taxonomy.txt.zip"],
+        help="Lists of files to download to the address indicated by the -p argument"
     )
 
     parser_download.add_argument(
@@ -228,6 +260,7 @@ def main():
         help="Only sequences in the species(s) specified here will be downloaded if they are present in the index file.",
         nargs="+"
     )
+    #endregion
 
 
     parserloggingDL = parser_download.add_mutually_exclusive_group()
@@ -251,18 +284,17 @@ def main():
     args = parser.parse_args()
 
     try:
-        logger = logging.getLogger(__name__)
-
         if args.version:
             print(f"{__name__} version {__version__}")
             sys.exit(0)
         elif args.quiet:
-            logging.basicConfig(level=logging.ERROR)
+            logging.basicConfig(level=logging.ERROR, handlers=[configureHandler()])
         elif args.debug:
-            logging.basicConfig(level=logging.DEBUG)
+            logging.basicConfig(level=logging.DEBUG, handlers=[configureHandler()])
         else:
-            logging.basicConfig(level=logging.INFO)
+            logging.basicConfig(level=logging.INFO, handlers=[configureHandler()])
 
+        logger = logging.getLogger(__name__)
         logger.info(f"Using {__name__} version {__version__}")
         logger.debug(f"Using Debug logger")
         args.func(args)
