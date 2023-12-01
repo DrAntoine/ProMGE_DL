@@ -66,20 +66,6 @@ def main():
     )
 
     parser_download.add_argument(
-        "-r",
-        "--resume",
-        action="store_true",
-        help="Allows you to resume downloading. If it is not used, the program downloads all the sequences, even those already present on the disk"
-    )
-
-    parser_download.add_argument(
-        "--apikey",
-        type=str,
-        default="",
-        help="The NCBI API key allows you to go from 3 requests per second to 10. Please note, the email and API key pair must be linked to your NCBI account otherwise the server may block you. It is not useful to put this parameter if you do not have an API key, the server will block you at 3 requests per second"
-    )
-
-    parser_download.add_argument(
         "-@",
         "--email",
         type=str,
@@ -117,6 +103,21 @@ def main():
         default=False,
         help="Displays the sequence identifiers that will be downloaded and stops the program",
         required=False
+    )
+
+    parser_download.add_argument(
+        "--exportSeqID",
+        type=str,
+        default=False,
+        help="Export the sequence identifiers that will be downloaded to the specified file",
+        required=False
+    )
+
+    parser_download.add_argument(
+        "-r",
+        "--resume",
+        action="store_true",
+        help="Allows you to resume downloading. If it is not used, the program downloads all the sequences, even those already present on the disk"
     )
 
     parser_download.add_argument(

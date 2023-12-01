@@ -1,10 +1,10 @@
-import os, shutil, datetime, logging, json, signal
+import os, shutil, datetime, logging, json, requests
 from zipfile import ZipFile
-
 from tqdm.auto import tqdm
-
 from Bio import Entrez
-import requests
+
+from promgedl.version import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +31,10 @@ def checkDirectoryStructure(structure):
         # return "Absent"
         return "Partial"
     else:
-        if list(set(folderStatus))[0]==True:
-            return "Complete"
-        else:
-            return "Absent"
+        return "Complete" if list(set(folderStatus))[0]==True else "Absent"
+        #     return "Complete"
+        # else:
+        #     return "Absent"
     
 def downloadIndex(baseURL, distantFile, indexLocation):
     logger.debug("downloadIndex function")
@@ -52,7 +52,7 @@ def checkIndexFile(indexLocation):
     numberOfDaysBeforeDownloadAgain = 7
     logger.debug(indexLocation)
     if not os.path.exists(indexLocation):
-        logger.debug(f"The archive does not exist. It will be downloaded")
+        logger.debug("The archive does not exist. It will be downloaded")
         return False
     logger.debug("mges zipfile exist")
     lastModified = os.path.getmtime(indexLocation)
@@ -62,14 +62,12 @@ def checkIndexFile(indexLocation):
     if days >= numberOfDaysBeforeDownloadAgain:
         logger.debug(f"The archive is to old and will be downloaded again. (file's days >= {numberOfDaysBeforeDownloadAgain})")
         return False
-    logger.debug(f"The archive is sufficiently recent")
+    logger.debug("The archive is sufficiently recent")
     return True
     
 def __count_generator__(reader):
-    b = reader(1024*1024)
-    while b:
-        yield b
-        b = reader(1024*1024)  
+    while b:= reader(1024*1024):
+        yield b 
 
 def estimateFileLength(filepath):
     logger.debug("estimateFileLength function")
@@ -81,7 +79,7 @@ def estimateFileLength(filepath):
 def convertToInt(string):
     try:
         return int(string)
-    except:
+    except Exception:
         return -1
 
 def applyFiltersMGETXT(line, dbindex, args):
@@ -217,31 +215,6 @@ def extractSequencesIdFromIndexFile(indexPath, args):
                 pbar.update()
     return sequencesIDList
 
-def extractSequencesIdFromIndexFile2(indexPath, file):
-    logger.debug("extractSeqencesIdFromIndexFile2 function")
-    if ".zip" in file:
-        indexPath = f'{indexPath}/{file[:-4]}'
-    else:
-        indexPath = f'{indexPath}/{file}'
-    actualLine = 0
-    indexFileIndex = []
-    sequencesIDList = []
-    with tqdm(total=estimateFileLength(indexPath), desc=f"Extracting accession numbers from {file}") as pbar:
-        with open(indexPath, "r") as indexFile:
-            for line in indexFile:
-                actualLine+=1
-                splitedLine = line.strip().split("\t")
-                if actualLine==1:
-                    indexFileIndex = splitedLine
-                    logger.debug(f"IndexFileIndex : {indexFileIndex}")
-                else:
-                    pass
-                    # sequenceID = applyFiltersMGETXT(splitedLine, indexFileIndex, args)
-                    # if sequenceID:
-                    #     sequencesIDList.append(sequenceID)
-                pbar.update()
-    return sequencesIDList
-
 def displaySeqIds(seqIDs):
     line = ""
     for i in range(len(seqIDs)):
@@ -305,8 +278,8 @@ def writeTree(treeIndex, indexFolder):
         jsonTree.write(json.dumps(packTree(treeIndex)))
 
 def createEmptyTree():
-    tree = [noeud(IdPere=None, value="START")]
-    return tree
+    return [noeud(IdPere=None, value="START")]
+    # return tree
 
 def loadTree(indexFolder) :
 
@@ -315,15 +288,13 @@ def loadTree(indexFolder) :
         logger.debug(f"Tree size : {os.stat(f'{indexFolder}/downloadedSeq.tree').st_size/(1024*1024)}")
         logger.debug(f"Loading {indexFolder}/downloadedSeq.tree")
         with open(f'{indexFolder}/downloadedSeq.tree') as jsonTree:
-            treeIndex = unpackTree(json.loads(jsonTree.read()))
-            return treeIndex
+            return unpackTree(json.loads(jsonTree.read()))
     elif os.path.isfile(f'{indexFolder}/downloadedSeq.tree.old') and os.stat(f'{indexFolder}/downloadedSeq.tree.old').st_size >0:
         logger.debug(f"Loading {indexFolder}/downloadedSeq.tree.old")
         with open(f'{indexFolder}/downloadedSeq.tree.old') as jsonTree:
-            treeIndex = unpackTree(json.loads(jsonTree.read()))
-            return treeIndex
+            return unpackTree(json.loads(jsonTree.read()))
     else:
-        logger.debug(f"Unable to load [index].tree or [index].tree.old")
+        logger.debug("Unable to load [index].tree or [index].tree.old")
         return None
 
 def isTheItemIsInTheTree(tree, researchTarget):
@@ -450,16 +421,18 @@ def GetSequencesAlreadyDownloaded(dblocation):
     return alreadyDLseq
 
 def packTree(tree):
-    packedTree = []
-    for node in tree:
-        packedTree.append([node.pere, node.content, node.filsG, node.frereD])
-    return packedTree
+    return [[node.pere, node.content, node.filsG, node.frereD] for node in tree]
+    # packedTree = []
+    # for node in tree:
+    #     packedTree.append([node.pere, node.content, node.filsG, node.frereD])
+    # return packedTree
 
 def unpackTree(packedTree):
-    tree = []
-    for packedNode in packedTree:
-        tree.append(noeud(IdPere=packedNode[0], value=packedNode[1], idFilsG=packedNode[2], idFrereD=packedNode[3]))
-    return tree
+    return [noeud(IdPere=packedNode[0], value=packedNode[1], idFilsG=packedNode[2], idFrereD=packedNode[3]) for packedNode in packedTree]
+    # tree = []
+    # for packedNode in packedTree:
+    #     tree.append(noeud(IdPere=packedNode[0], value=packedNode[1], idFilsG=packedNode[2], idFrereD=packedNode[3]))
+    # return tree
 
 def downloadSeq(seqIDs, dbLocation, indexFolder, entrezEmail, resume, entrezAPI=""):
     downloadByStep = 20
@@ -498,17 +471,12 @@ def downloadSeq(seqIDs, dbLocation, indexFolder, entrezEmail, resume, entrezAPI=
                     if entrezIDs == []:
                         raise DownloadError("No ID found in Entrez database")
                     rawsequences = fetchEntrez(entrezIDs, entrezDB)
-                    # if len(rawsequences)<=1:
-                    #     raise DownloadError(f"fetchEntrez Error : {rawsequences[0]}")
                     fastaDict = ParseSequences(rawsequences)
-                    # if fastaDict is not None:
                     logger.debug(fastaDict.keys())
-                except DownloadError as err:
+                except (DownloadError, RuntimeError) as err:
                     logger.error(err)
-                except RuntimeError as err:
-                    logger.error(err)
-                except Exception as err:
-                    logger.error(err)
+                except Exception as exc:
+                    logger.error(exc)
                 else:
                     break
                 logger.info(f"Download attempt {downloadAttempt} failed")
@@ -518,7 +486,7 @@ def downloadSeq(seqIDs, dbLocation, indexFolder, entrezEmail, resume, entrezAPI=
                 pbar.update(len(query))
                 logger.warning(f"Unable to download these sequences: {', '.join(query)}")
             else:
-                fastaSeqKey = [seqID for seqID in fastaDict.keys()]
+                fastaSeqKey = list(fastaDict)
                 fastaSeqKeyShort = [seqID.split(".")[0] for seqID in fastaSeqKey]
                 localFailedDownload = []
                 localSucces = []
@@ -545,3 +513,12 @@ def downloadSeq(seqIDs, dbLocation, indexFolder, entrezEmail, resume, entrezAPI=
     else:
         logger.info("The download went well")
 
+def exportSeqIDs(seqIDs, output, args):
+    with open(output,"w") as outfile :
+        dictArgs = vars(args)
+        outfile.write(f"# Using promgedl v{__version__}\n#\n")
+        for arg in dictArgs:
+            if arg != "func":
+                outfile.write(f"# {arg} : {dictArgs[arg]}\n")
+        for seq in seqIDs:
+            outfile.write(f"{seq}\n")

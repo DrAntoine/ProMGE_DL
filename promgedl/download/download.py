@@ -1,14 +1,13 @@
 import os, logging, signal
 
-from promgedl.download.tools import * #checkDirectoryStructure, checkIndexFile, downloadIndex, extractSeqencesIdFromIndexFile
-
+from promgedl.download.tools import * 
 logger = logging.getLogger(__name__)
 
 
 def handler(signum, frame):
     logger.critical("The stop signal has just been used!")
     exit(1)
- 
+
 signal.signal(signal.SIGINT, handler)
 
 
@@ -57,6 +56,12 @@ def run(args):
     sequencesToDownloadFiltered = extractSequenceIDFromTree(makeFilteredTree(sequencesToDownload))
     sequencesToDownloadFiltered.sort()
     # Extraire les n° de seq (make/extract filtered tree)
+    if args.exportSeqID:
+        path = f"directory_structure['indexFolder']/{datetime.date.today()}_seqIDsExported"
+        if args.exportSeqID != "":
+            path = args.exportSeqID
+        exportSeqIDs(sequencesToDownloadFiltered, path, args)
+    
     if args.showSeqID:
         displaySeqIds(sequencesToDownloadFiltered)
         exit()
